@@ -21,7 +21,8 @@ BULLET_COLOR = "yellow"
 SHOOTING = 10
 SHOOTING_PROBABILITY = 8
 SHOOTING_PROBABILITY_BASE = 1000
-BULLET_SPEED = 8
+SHOOTING_PROBABILITY_INCREASE_RATE = 3
+BULLET_SPEED = 12
 # HIT_SLEEP = 0.03
 
 
@@ -43,6 +44,7 @@ class Aliens:
         self.direction = DIRECTION_RIGHT
         self.left_border = -self.screen_width//2 + GAP_X + ALIEN_IMAGE_WIDTH//2
         self.right_border = self.screen_width//2 - GAP_X - ALIEN_IMAGE_WIDTH//2
+        self.shooting_probability = SHOOTING_PROBABILITY
         self.bullets = []
         self.shooting_bullets = []
         self.build_aliens()
@@ -71,19 +73,44 @@ class Aliens:
             bullet.goto(0, self.screen_height + 50)  # outside the screen
             self.bullets.append(bullet)
 
+
+    def check_columns(self):
+        # check left
+        for current_column in range(self.left_column, self.right_column + 1):
+            for k in range(ALIENS_DEPTH):
+                # print(f"checking column from LEFT {current_column}")
+                if self.aliens[current_column + ALIENS_WIDTH*k].isvisible():
+                    self.left_column = current_column
+                    break
+            else:
+                continue
+            break
+        # now check right
+        for current_column in range(self.right_column, self.left_column - 1, -1):
+            # print(f"checking column from RIGHT {current_column}")
+            for k in range(ALIENS_DEPTH):
+                if self.aliens[current_column + ALIENS_WIDTH*k].isvisible():
+                    self.right_column = current_column
+                    return
+
+
     def move_aliens(self):
         # left_column / right_column check the upper row which will survive the longest
         if self.direction == DIRECTION_RIGHT:
-            if self.aliens[self.right_column].pos()[0] >= self.right_border:
-                self.direction = DIRECTION_LEFT
+            for m in range(self.right_column, len(self.aliens), ALIENS_WIDTH):
+                if self.aliens[m].pos()[0] >= self.right_border:
+                    self.direction = DIRECTION_LEFT
+                    break
         elif self.direction == DIRECTION_LEFT:
-            if self.aliens[self.left_column].pos()[0] <= self.left_border:
-                self.direction = DIRECTION_RIGHT
+            for m in range(self.left_column, len(self.aliens), ALIENS_WIDTH):
+                if self.aliens[m].pos()[0] <= self.left_border:
+                    self.direction = DIRECTION_RIGHT
+                    break
         for alien in self.aliens:
             if alien.isvisible():
                 alien.goto(alien.pos()[0] + STEP*self.direction, alien.pos()[1])
                 if alien.pensize() == SHOOTING:
-                    if randint(1, SHOOTING_PROBABILITY_BASE) < SHOOTING_PROBABILITY:
+                    if randint(1, SHOOTING_PROBABILITY_BASE) < self.shooting_probability:
                         bullet = self.bullets.pop()
                         bullet.goto(alien.pos()[0], alien.pos()[1] - ALIEN_IMAGE_HEIGHT)
                         self.shooting_bullets.append(bullet)
@@ -108,11 +135,20 @@ class Aliens:
             if alien.pos()[0] - ALIEN_IMAGE_WIDTH//2 < defender_bullet.pos()[0] < alien.pos()[0] + ALIEN_IMAGE_WIDTH//2 and -6 < alien.pos()[1] - defender_bullet.pos()[1] < 4:
                 alien.shape(ALIEN_SHOT_IMAGE)
                 self.shot_aliens += 1
-                if k - ALIENS_WIDTH >= 0:  # not in the last row, there is one behind this one
-                    self.aliens[k - ALIENS_WIDTH].pensize(SHOOTING)  # now it can shoot
+                if alien.pensize() == SHOOTING:  # was in the shooting line...
+                    # print(f"Index {k} hit")
+                    for m in range(k - ALIENS_WIDTH, -1, -ALIENS_WIDTH):  # ...check those behind
+                        # print(f"Check if index {m} can shoot...")
+                        if self.aliens[m].isvisible():  # if it's there...
+                            # print("...It can")
+                            self.aliens[m].pensize(SHOOTING)  # ...it can shoot now
+                            break
                 # sleep(HIT_SLEEP)
                 self.screen.update()
                 alien.hideturtle()
+                self.check_columns()
+                print(f"LEFT: {self.left_column}, RIGHT: {self.right_column}")
+                self.shooting_probability += self.shot_aliens//SHOOTING_PROBABILITY_INCREASE_RATE
                 return True
         return False
 
@@ -145,7 +181,7 @@ class Aliens:
             self.bullets.append(bullet)
 
     def check_shot_aliens(self):
-        return self.shot_aliens == len(self.aliens) - 22
+        return self.shot_aliens == len(self.aliens)
 
 
 
